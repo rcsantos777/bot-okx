@@ -20,8 +20,7 @@ EMA_PERIOD = 50
 RR = 2
 
 app = Flask(__name__)
-app.secret_key = "change_this_secret"
-
+app.secret_key = "okx123"
 PANEL_PASSWORD = "1234"
 
 #================ AUTH OKX =================#
@@ -110,21 +109,20 @@ def place_order(side):
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        if request.form.get("password") == PANEL_PASSWORD:
+        password = request.form.get("password", "").strip()
+
+        if password == PANEL_PASSWORD:
             session["auth"] = True
             return redirect("/")
         return "Senha incorreta"
 
     return """
-    <h2>Login Painel Bot</h2>
+    <h2>Login Painel BOT</h2>
     <form method="post">
         <input type="password" name="password" placeholder="senha">
-        <button>Entrar</button>
+        <button type="submit">Entrar</button>
     </form>
     """
-
-def auth():
-    return session.get("auth", False)
 
 #================ PAINEL =================#
 
