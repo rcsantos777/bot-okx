@@ -1,17 +1,16 @@
 from flask import Flask, request, redirect, session
-import requests
-import os
-import time
-import hmac
-import base64
-import json
+import requests, os, time, hmac, base64, json
 import pandas as pd
+import threading
 
 #================ CONFIG =================#
 
 API_KEY = os.getenv("OKX_API_KEY")
 API_SECRET = os.getenv("OKX_API_SECRET")
 PASSPHRASE = os.getenv("OKX_API_PASSPHRASE")
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 BASE_URL = "https://www.okx.com"
 SYMBOL = "ETH-USDT"
@@ -23,6 +22,16 @@ app = Flask(__name__)
 app.secret_key = "okx123"
 
 PANEL_PASSWORD = "1234"
+trades = []
+
+#================ TELEGRAM =================#
+
+def send_telegram(msg):
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+    except:
+        pass
 
 #================ AUTH OKX =================#
 
@@ -49,24 +58,18 @@ def sign(method, path, body=""):
 
 def price():
     try:
-        url = f"{BASE_URL}/api/v5/market/ticker?instId={SYMBOL}"
-        r = requests.get(url).json()
+        r = requests.get(f"{BASE_URL}/api/v5/market/ticker?instId={SYMBOL}").json()
         return float(r['data'][0]['last'])
     except:
-        return 0.0
-
+        return 0
 
 def trend():
     try:
-        url = f"{BASE_URL}/api/v5/market/candles?instId={SYMBOL}&bar=5m&limit=100"
-        r = requests.get(url).json()
-
+        r = requests.get(f"{BASE_URL}/api/v5/market/candles?instId={SYMBOL}&bar=5m&limit=100").json()
         df = pd.DataFrame(r['data'])
         df = df.iloc[::-1]
         df['close'] = df[4].astype(float)
-
         ema = df['close'].ewm(span=EMA_PERIOD).mean()
-
         return "UP" if df['close'].iloc[-1] > ema.iloc[-1] else "DOWN"
     except:
         return "UNKNOWN"
@@ -75,9 +78,7 @@ def trend():
 
 def has_position():
     try:
-        path = "/api/v5/account/positions"
-        r = requests.get(BASE_URL + path, headers=sign("GET", path)).json()
-
+        r = requests.get(BASE_URL+"/api/v5/account/positions", headers=sign("GET","/api/v5/account/positions")).json()
         for p in r.get("data", []):
             if float(p.get("pos", 0)) != 0:
                 return True
@@ -90,54 +91,62 @@ def has_position():
 def place_order(side):
     try:
         path = "/api/v5/trade/order"
-
         p = price()
-        risk = p * 0.005
-
-        sl = p - risk if side == "BUY" else p + risk
-        tp = p + (risk * RR) if side == "BUY" else p - (risk * RR)
 
         body = {
             "instId": SYMBOL,
             "tdMode": "cash",
-            "side": "buy" if side == "BUY" else "sell",
+            "side": "buy" if side=="BUY" else "sell",
             "ordType": "market",
-            "sz": "0.01",
-            "attachAlgoOrds": [
-                {
-                    "tpTriggerPx": str(tp),
-                    "tpOrdPx": "-1",
-                    "slTriggerPx": str(sl),
-                    "slOrdPx": "-1"
-                }
-            ]
+            "sz": "0.01"
         }
 
-        return requests.post(
-            BASE_URL + path,
-            headers=sign("POST", path, json.dumps(body)),
-            data=json.dumps(body)
-        ).json()
+        res = requests.post(BASE_URL+path, headers=sign("POST",path,json.dumps(body)), data=json.dumps(body)).json()
+
+        trades.append({"side": side, "price": p})
+
+        send_telegram(f"{side} executado | preco {p}")
+
+        return res
     except Exception as e:
         return {"error": str(e)}
 
+#================ AUTO BOT =================#
+
+def auto_bot():
+    while True:
+        try:
+            if not has_position():
+                t = trend()
+
+                if t == "UP":
+                    place_order("BUY")
+
+                elif t == "DOWN":
+                    place_order("SELL")
+
+        except:
+            pass
+
+        time.sleep(60)  # roda a cada 1 minuto
+
+threading.Thread(target=auto_bot).start()
+
 #================ LOGIN =================#
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login", methods=["GET","POST"])
 def login():
-    if request.method == "POST":
-        password = request.form.get("password", "").strip()
-
-        if password == PANEL_PASSWORD:
-            session["auth"] = True
+    if request.method=="POST":
+        if request.form.get("password","").strip()==PANEL_PASSWORD:
+            session["auth"]=True
             return redirect("/")
         return "Senha incorreta"
 
     return """
-    <h2>Login Painel BOT</h2>
+    <h2>Login</h2>
     <form method="post">
-        <input type="password" name="password" placeholder="senha">
-        <button type="submit">Entrar</button>
+    <input type="password" name="password">
+    <button>Entrar</button>
     </form>
     """
 
@@ -148,59 +157,32 @@ def auth():
 
 @app.route("/")
 def home():
-    try:
-        if not auth():
-            return redirect("/login")
+    if not auth():
+        return redirect("/login")
 
-        return f"""
-        <h1>PAINEL OKX BOT</h1>
+    return f"""
+    <h1>BOT OKX AUTO</h1>
 
-        <p>Preço: {price()}</p>
-        <p>Tendência: {trend()}</p>
-        <p>Posição: {has_position()}</p>
+    Preco: {price()} <br>
+    Tendencia: {trend()} <br>
+    Posicao: {has_position()} <br>
+    Trades: {len(trades)} <br><br>
 
-        <hr>
+    <a href="/buy"><button>BUY</button></a>
+    <a href="/sell"><button>SELL</button></a>
+    <br><br>
+    <a href="/logout">Logout</a>
+    """
 
-        <a href="/buy"><button>BUY</button></a>
-        <a href="/sell"><button>SELL</button></a>
-
-        <hr>
-
-        <a href="/logout">Logout</a>
-        """
-    except Exception as e:
-        return f"Erro: {str(e)}"
-
-#================ AÇÕES =================#
+#================ MANUAL =================#
 
 @app.route("/buy")
 def buy():
-    if not auth():
-        return redirect("/login")
-
-    if has_position():
-        return "Ja existe posicao"
-
-    if trend() != "UP":
-        return "Contra tendencia"
-
     return str(place_order("BUY"))
-
 
 @app.route("/sell")
 def sell():
-    if not auth():
-        return redirect("/login")
-
-    if has_position():
-        return "Ja existe posicao"
-
-    if trend() != "DOWN":
-        return "Contra tendencia"
-
     return str(place_order("SELL"))
-
-#================ LOGOUT =================#
 
 @app.route("/logout")
 def logout():
