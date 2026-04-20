@@ -1,18 +1,3 @@
-
-🚀 PRONTO
-
-Depois disso você terá:
-
-✔ painel web
-✔ login simples
-✔ botões BUY/SELL
-✔ execução na OKX
-✔ proteção básica de tendência
-
-
-
-
-
 from flask import Flask, request, redirect, session
 import requests
 import os
@@ -149,7 +134,7 @@ def home():
         return redirect("/login")
 
     return f"""
-    <h1>🤖 PAINEL OKX BOT</h1>
+    <h1> PAINEL OKX BOT</h1>
 
     <p><b>Preço:</b> {price()}</p>
     <p><b>Tendência:</b> {trend()}</p>
@@ -157,8 +142,8 @@ def home():
 
     <hr>
 
-    <a href="/buy"><button style="font-size:20px;color:green;">🟢 BUY</button></a>
-    <a href="/sell"><button style="font-size:20px;color:red;">🔴 SELL</button></a>
+    <a href="/buy"><button style="font-size:20px;color:green;"> BUY</button></a>
+    <a href="/sell"><button style="font-size:20px;color:red;"> SELL</button></a>
 
     <hr>
 
@@ -173,10 +158,10 @@ def buy():
         return redirect("/login")
 
     if has_position():
-        return "❌ Já existe posição"
+        return " Já existe posição"
 
     if trend() != "UP":
-        return "❌ Contra tendência"
+        return " Contra tendência"
 
     return str(place_order("BUY"))
 
@@ -187,10 +172,10 @@ def sell():
         return redirect("/login")
 
     if has_position():
-        return "❌ Já existe posição"
+        return " Já existe posição"
 
     if trend() != "DOWN":
-        return "❌ Contra tendência"
+        return " Contra tendência"
 
     return str(place_order("SELL"))
 
