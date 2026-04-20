@@ -9,9 +9,9 @@ import pandas as pd
 
 #================ CONFIG =================#
 
-API_KEY = os.getenv("OKX_API_KEY")
-API_SECRET = os.getenv("OKX_API_SECRET")
-PASSPHRASE = os.getenv("OKX_API_PASSPHRASE")
+OKX_API_KEY = qualquer_coisa
+OKX_API_SECRET = qualquer_coisa
+OKX_API_PASSPHRASE = qualquer_coisa
 
 BASE_URL = "https://www.okx.com"
 SYMBOL = "ETH-USDT"
