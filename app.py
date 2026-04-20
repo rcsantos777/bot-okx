@@ -22,7 +22,7 @@ RR = 2
 app = Flask(__name__)
 app.secret_key = "change_this_secret"
 
-PANEL_PASSWORD = "abcd"
+PANEL_PASSWORD = "1234"
 
 #================ AUTH OKX =================#
 
